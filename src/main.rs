@@ -6,32 +6,44 @@ use colored::*;
 fn afficher_positions(tsince_values: &[f64], positions: &[[f64; 3]], elements: &sgp4_rust::OrbitalElements) {
 
     println!("\nComparaison des positions :");
-    println!("┌── TSINCE ──┬───────────── REF POSITION [km] ────────┬───────────── SIMULATED [km] ───────────┬──────────── DELTA [km] ──────────┐");
+    println!("┌── TSINCE ──┬───────────── REF POSITION [km] ────────┬───────────── SIMULATED [km] ───────────┬──────────── DELTA [km] ──────────┬─ Total Δ [km] ─┐");
     for (i, &tsince) in tsince_values.iter().enumerate() {
-        let expected = positions[i];
-        let state = sgp4(tsince, elements);
+        let expected: [f64; 3] = positions[i];
+        let state: sgp4_rust::StateVector = sgp4(tsince, elements);
 
-        let dx = (expected[0] - state.position[0]).abs();
-        let dy = (expected[1] - state.position[1]).abs();
-        let dz = (expected[2] - state.position[2]).abs();
+        let dx: f64 = (expected[0] - state.position[0]).abs();
+        let dy: f64 = (expected[1] - state.position[1]).abs();
+        let dz: f64 = (expected[2] - state.position[2]).abs();
 
         let fmt = |delta: f64| {
-            if delta > 1.0 {
-                format!("{:>7.2}", delta).red()
+            if delta > 150.0 && delta < 300.0 {
+                format!("{:>7.2}", delta).yellow()
+            } else if delta > 300.0 {
+                  format!("{:>7.2}", delta).red()
+            } else {
+                format!("{:>7.2}", delta).green()
+            }
+        };
+        let fmt_total = |delta: f64| {
+            if delta > 200.0 && delta < 700.0 {
+                format!("{:>7.2}", delta).yellow()
+            } else if delta > 700.0 {
+                  format!("{:>7.2}", delta).red()
             } else {
                 format!("{:>7.2}", delta).green()
             }
         };
 
         println!(
-            "│ {:>10.3} │ X={:>10.2} Y={:>10.2} Z={:>10.2} │ X={:>10.2} Y={:>10.2} Z={:>10.2} │ ΔX={} ΔY={} ΔZ={} │",
+            "│ {:>10.3} │ X={:>10.2} Y={:>10.2} Z={:>10.2} │ X={:>10.2} Y={:>10.2} Z={:>10.2} │ ΔX={} ΔY={} ΔZ={} │   ΔR={}   │",
             tsince,
             expected[0], expected[1], expected[2],
             state.position[0], state.position[1], state.position[2],
-            fmt(dx), fmt(dy), fmt(dz)
+            fmt(dx), fmt(dy), fmt(dz),
+            fmt_total(dx + dy + dz),
         );
     }
-    println!("└────────────┴────────────────────────────────────────┴────────────────────────────────────────┴──────────────────────────────────┘");
+    println!("└────────────┴────────────────────────────────────────┴────────────────────────────────────────┴──────────────────────────────────┴────────────────┘");
 }
 
 
@@ -39,7 +51,7 @@ fn afficher_positions(tsince_values: &[f64], positions: &[[f64; 3]], elements: &
 fn afficher_vitesses(tsince_values: &[f64], velocities: &[[f64; 3]], elements: &sgp4_rust::OrbitalElements) {
 
     println!("\nComparaison des vitesses :");
-    println!("┌─── TSINCE ────┬──────── REF VELOCITY [km/s] ──────┬──────────── SIMULATED [km/s] ───────────┬───────── DELTA [km/s] ───────┐");
+    println!("┌─── TSINCE ────┬──────── REF VELOCITY [km/s] ──────┬──────────── SIMULATED [km/s] ───────────┬───────── DELTA [km/s] ───────┬─ Total Δ [km] ─┐");
 
     for (i, &tsince) in tsince_values.iter().enumerate() {
         let reference = velocities[i];
@@ -50,22 +62,36 @@ fn afficher_vitesses(tsince_values: &[f64], velocities: &[[f64; 3]], elements: &
         let dvz = (reference[2] - state.velocity[2]).abs();
 
         let fmt = |delta: f64| {
-            if delta > 0.05 {
-                format!("{:>6.4}", delta).red()
+            if delta > 0.03 && delta <  0.05 {
+                format!("{:>6.4}", delta).yellow()
+            } else if delta > 0.05 {
+                  format!("{:>6.4}", delta).red()
+            } else {
+                format!("{:>6.4}", delta).green()
+            }
+        };
+
+
+        let fmt_total = |delta: f64| {
+            if delta > 0.050 && delta < 0.100 {
+                format!("{:>6.4}", delta).yellow()
+            } else if delta > 0.100 {
+                  format!("{:>6.4}", delta).red()
             } else {
                 format!("{:>6.4}", delta).green()
             }
         };
 
         println!(
-            "│ t = {:>5} min │ Ref = [{:>7.4}, {:>7.4}, {:>7.4}] │ Simulated = [{:>7.4}, {:>7.4}, {:>7.4}] │ Δ = [{}, {}, {}] │",
+            "│ t = {:>5} min │ Ref = [{:>7.4}, {:>7.4}, {:>7.4}] │ Simulated = [{:>7.4}, {:>7.4}, {:>7.4}] │ Δ = [{}, {}, {}] │    ΔR={}   │",
             tsince,
             reference[0], reference[1], reference[2],
             state.velocity[0], state.velocity[1], state.velocity[2],
-            fmt(dvx), fmt(dvy), fmt(dvz)
+            fmt(dvx), fmt(dvy), fmt(dvz),
+            fmt_total(dvx + dvy + dvz),
         );
     }
-    println!("└───────────────┴───────────────────────────────────┴─────────────────────────────────────────┴──────────────────────────────┘");
+    println!("└───────────────┴───────────────────────────────────┴─────────────────────────────────────────┴──────────────────────────────┴────────────────┘");
 }
 
 
