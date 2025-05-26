@@ -22,10 +22,9 @@ pub struct OrbitalElements {
 }
 
 // Constants
-const TWOPI: f64 = 2.0 * PI;
+const TWOPI: f64 = 2.0 * std::f64::consts::PI;
 const XKE: f64 = 0.0743669161;
 const CK2: f64 = 5.413080e-4;
-const AE: f64 = 1.0;
 const XMNPDA: f64 = 1440.0;
 const TOTHIRD: f64 = 2.0 / 3.0;
 const XKMPER: f64 = 6378.135;
@@ -103,30 +102,36 @@ fn solve_kepler(mean_anomaly: f64, eccentricity: f64, tol: f64) -> f64 {
 
 
 pub fn sgp4(tsince: f64, elements: &OrbitalElements) -> StateVector {
-    // Constantes orbitales
-    let a = (XKE / elements.mean_motion).powf(2.0 / 3.0); // demi-grand axe en rayons terrestres
+    let a = (XKE / elements.mean_motion).powf(2.0 / 3.0); // demi-grand axe (rayons terrestres)
     let e = elements.eccentricity;
     let i = elements.inclination;
     let omega = elements.arg_perigee;
     let raan = elements.raan;
 
-    // Anomalie moyenne à t = tsince
-    let m = elements.mean_anomaly + elements.mean_motion * tsince;
-
-    // Résolution de l'équation de Kepler
-    let e_anomaly = solve_kepler(m % (2.0 * PI), e, 1e-8);
+    // Anomalie moyenne + résolution de Kepler
+    let m = (elements.mean_anomaly + elements.mean_motion * tsince) % TWOPI;
+    let e_anomaly = solve_kepler(m, e, 1e-8);
 
     // Anomalie vraie
-    let v = 2.0 * ((1.0 + e).sqrt() * (e_anomaly / 2.0).sin()).atan2((1.0 - e).sqrt() * (e_anomaly / 2.0).cos());
+    let v = 2.0 * ((1.0 + e).sqrt() * (e_anomaly / 2.0).sin())
+        .atan2((1.0 - e).sqrt() * (e_anomaly / 2.0).cos());
 
-    // Distance au foyer
+    // Distance (en rayons terrestres)
     let r = a * (1.0 - e * e_anomaly.cos());
 
     // Coordonnées dans le plan orbital
     let x_orb = r * v.cos();
     let y_orb = r * v.sin();
 
-    // Passage au référentiel inertiel géocentrique (ECI)
+    // Vitesse dans le plan orbital
+    let p = a * (1.0 - e * e); // paramètre orbital
+    let r_dot = XKE * a.sqrt() * e * e_anomaly.sin() / r;
+    let r_fi_dot = XKE * (p).sqrt() / (r * r);
+
+    let vx_orb = r_dot * v.cos() - r * r_fi_dot * v.sin();
+    let vy_orb = r_dot * v.sin() + r * r_fi_dot * v.cos();
+
+    // Pré-calculs pour transformation inertielle
     let cos_omega = omega.cos();
     let sin_omega = omega.sin();
     let cos_raan = raan.cos();
@@ -134,17 +139,26 @@ pub fn sgp4(tsince: f64, elements: &OrbitalElements) -> StateVector {
     let cos_i = i.cos();
     let sin_i = i.sin();
 
+    // Position inertielle ECI (rayons terrestres)
     let x = x_orb * (cos_raan * cos_omega - sin_raan * sin_omega * cos_i)
           - y_orb * (cos_raan * sin_omega + sin_raan * cos_omega * cos_i);
     let y = x_orb * (sin_raan * cos_omega + cos_raan * sin_omega * cos_i)
           - y_orb * (sin_raan * sin_omega - cos_raan * cos_omega * cos_i);
     let z = x_orb * sin_omega * sin_i + y_orb * cos_omega * sin_i;
 
+    // Vitesse inertielle ECI (rayons terrestres / min)
+    let vx = vx_orb * (cos_raan * cos_omega - sin_raan * sin_omega * cos_i)
+           - vy_orb * (cos_raan * sin_omega + sin_raan * cos_omega * cos_i);
+    let vy = vx_orb * (sin_raan * cos_omega + cos_raan * sin_omega * cos_i)
+           - vy_orb * (sin_raan * sin_omega - cos_raan * cos_omega * cos_i);
+    let vz = vx_orb * sin_omega * sin_i + vy_orb * cos_omega * sin_i;
+
     StateVector {
-        position: [x * XKMPER, y * XKMPER, z * XKMPER],         // km
-        velocity: [0.0, 0.0, 0.0], // à compléter (dérivée orbitale complète si besoin)
+        position: [x * XKMPER, y * XKMPER, z * XKMPER],                 // km
+        velocity: [vx * XKMPER / 60.0, vy * XKMPER / 60.0, vz * XKMPER / 60.0], // km/s
     }
 }
+
 
 
 pub fn add(left: u64, right: u64) -> u64 {
