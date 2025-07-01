@@ -15,7 +15,7 @@ To use this library and application, you need to have Rust installed on your mac
 1. Clone the repository:
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/BenjaminPellieux/orbitalrs.git
 cd sgp4-rust
 ```    
 
